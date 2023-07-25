@@ -3,7 +3,7 @@
   import { register } from "@tauri-apps/api/globalShortcut";
 
   window.onload = async () => {
-    await register("Shift+H", () => {
+    await register("Control+H", (shortcut) => {
       invoke("process_item");
     });
   };

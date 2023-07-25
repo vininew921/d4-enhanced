@@ -1,10 +1,13 @@
 use chrono::Utc;
 use opencv::{core::Point, imgcodecs, imgproc, prelude::Mat};
 use screenshots::Screen;
-use std::{fs, time::Instant};
+
+use std::{error::Error, fs, time::Instant};
 use tauri::regex::Regex;
 
-pub fn process_item() {
+use crate::models::DiabloItem;
+
+pub fn process_item() -> Result<DiabloItem, Box<dyn Error>> {
     let start = Instant::now();
 
     //Take screenshot of main display
@@ -14,15 +17,14 @@ pub fn process_item() {
         .find(|s| s.display_info.is_primary)
         .unwrap();
 
-    let capture = screen.capture().unwrap();
-    let buffer = capture.to_png(None).unwrap();
+    let capture = screen.capture()?;
+    let buffer = capture.to_png(None)?;
 
     //Convert PNG image to opencv MAT
     let img = imgcodecs::imdecode(
-        &Mat::from_slice(buffer.as_slice()).unwrap(),
+        &Mat::from_slice(buffer.as_slice())?,
         imgcodecs::IMREAD_COLOR,
-    )
-    .unwrap();
+    )?;
 
     let templates = [
         "ocr_template/bottom_left.png",
@@ -35,7 +37,7 @@ pub fn process_item() {
 
     //Iterate through templates to get bouding box of the hovered item
     for template_file in templates {
-        let template = imgcodecs::imread(template_file, imgcodecs::IMREAD_COLOR).unwrap();
+        let template = imgcodecs::imread(template_file, imgcodecs::IMREAD_COLOR)?;
 
         //Template matching
         let mut res = Mat::default();
@@ -45,8 +47,7 @@ pub fn process_item() {
             &mut res,
             imgproc::TM_CCOEFF_NORMED,
             &Mat::default(),
-        )
-        .unwrap();
+        )?;
 
         let min_val: Option<&mut f64> = None;
         let max_val: Option<&mut f64> = None;
@@ -60,15 +61,14 @@ pub fn process_item() {
             min_loc,
             Some(max_loc),
             &Mat::default(),
-        )
-        .unwrap();
+        )?;
 
         positions.push(max_loc.to_owned());
     }
 
     if positions.len() != 4 {
         println!("Not all templates matched, exiting");
-        return;
+        return Err("Not all templates matched, exiting")?;
     }
 
     //Crop image based on template matching
@@ -77,7 +77,7 @@ pub fn process_item() {
     let start_col = positions[0].x;
     let end_col = positions[1].x;
 
-    let cropped_image_result = Mat::roi(
+    let cropped_image = Mat::roi(
         &img,
         opencv::core::Rect::new(
             start_col,
@@ -85,49 +85,43 @@ pub fn process_item() {
             end_col - start_col,
             end_row - start_row,
         ),
-    );
+    )
+    .map_err(|_| "Error generating cropped image")?;
 
-    if let Ok(cropped_image) = cropped_image_result {
-        let now = Utc::now().timestamp_micros();
-        let filepath = format!("ocr_results/{}.png", now);
+    let now = Utc::now().timestamp_micros();
+    let filepath = format!("ocr_results/{}.png", now);
 
-        imgcodecs::imwrite(
-            filepath.as_str(),
-            &cropped_image,
-            &opencv::core::Vector::default(),
-        )
-        .unwrap();
+    imgcodecs::imwrite(
+        filepath.as_str(),
+        &cropped_image,
+        &opencv::core::Vector::default(),
+    )?;
 
-        let tes_img = rusty_tesseract::Image::from_path(filepath).unwrap();
+    let tes_img = rusty_tesseract::Image::from_path(filepath)?;
+    let args = rusty_tesseract::Args::default();
+    let text_result = rusty_tesseract::image_to_string(&tes_img, &args)?;
 
-        let args = rusty_tesseract::Args::default();
+    let remove_characters = r"[\\|/*?'-]";
+    let regex_remove = Regex::new(remove_characters)?;
+    let pretty_result = regex_remove
+        .replace_all(&text_result, "")
+        .to_string()
+        .to_uppercase()
+        .replace("@ ", "")
+        .replace("® ", "")
+        .replace("© ", "")
+        .replace("@", "O")
+        .replace("®", "O")
+        .replace("©", "O")
+        .replace("¢", "")
+        .replace("{", "[")
+        .replace("}", "]")
+        .replace("OOO", "OO")
+        .replace("&", "E");
 
-        let text_result = rusty_tesseract::image_to_string(&tes_img, &args).unwrap();
+    fs::write(format!("ocr_results/{}.txt", now), pretty_result.to_owned())?;
 
-        let remove_characters = r"[\\|/*?'-]";
-        let regex_remove = Regex::new(remove_characters).unwrap();
+    println!("Processed image in {:?}", start.elapsed());
 
-        let pretty_result = regex_remove
-            .replace_all(&text_result, "")
-            .to_string()
-            .to_uppercase()
-            .replace("@ ", "")
-            .replace("® ", "")
-            .replace("© ", "")
-            .replace("@", "O")
-            .replace("®", "O")
-            .replace("©", "O")
-            .replace("¢", "")
-            .replace("{", "[")
-            .replace("}", "]")
-            .replace("OOO", "OO")
-            .replace("&", "E");
-
-        fs::write(format!("ocr_results/{}.txt", now), pretty_result).unwrap();
-
-        println!("Processed image in {:?}", start.elapsed());
-        return;
-    }
-
-    println!("Error generating cropped image");
+    return Ok(DiabloItem::new(pretty_result.to_owned(), now.to_string()));
 }

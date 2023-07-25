@@ -21,7 +21,7 @@ opencv = "0.83.0"
 screenshots = "0.7.0"
 chrono = "0.4.26"
 regex = "1.9.1"
-sqlx = { version = "0.7.1", features = ["sqlite", "runtime-tokio"] }
+sqlx = { version = "0.7.1", features = ["sqlite", "runtime-tokio", "chrono"] }
 tokio = { version = "1.29.1", features = ["full"] }
 
 [features]

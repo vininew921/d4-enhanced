@@ -1,17 +1,19 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 use std::{fs, path::Path};
 use tokio;
 
-use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
-
+pub mod models;
 pub mod ocr;
 pub mod queries;
 
 #[tauri::command]
 fn process_item() {
-    ocr::process_item();
+    if let Err(x) = ocr::process_item() {
+        println!("process_item error: {}", x.to_string());
+    }
 }
 
 #[tokio::main]
