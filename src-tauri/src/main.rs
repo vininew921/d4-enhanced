@@ -1,19 +1,38 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
+use error::CommandResult;
+use models::DiabloItem;
+use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool};
 use std::{fs, path::Path};
 use tokio;
 
+pub mod error;
 pub mod models;
 pub mod ocr;
 pub mod queries;
 
 #[tauri::command]
-fn process_item() {
-    if let Err(x) = ocr::process_item() {
-        println!("process_item error: {}", x.to_string());
-    }
+async fn screenshot_item(pool: tauri::State<'_, Pool<Sqlite>>) -> CommandResult<()> {
+    let item = ocr::process_item()?;
+
+    queries::insert_item(&pool, item.to_owned()).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn remove_item(id: i64, pool: tauri::State<'_, Pool<Sqlite>>) -> CommandResult<()> {
+    queries::remove_item(&pool, id).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_all_items(pool: tauri::State<'_, Pool<Sqlite>>) -> CommandResult<Vec<DiabloItem>> {
+    let items = queries::get_all_items(&pool).await?;
+
+    Ok(items)
 }
 
 #[tokio::main]
@@ -40,7 +59,12 @@ async fn main() {
     queries::setup_db(&db).await;
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![process_item])
+        .manage(db)
+        .invoke_handler(tauri::generate_handler![
+            screenshot_item,
+            remove_item,
+            get_all_items
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

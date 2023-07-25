@@ -606,6 +606,7 @@ dependencies = [
 name = "d4-enhanced"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "opencv",
  "regex",
@@ -616,6 +617,7 @@ dependencies = [
  "sqlx",
  "tauri",
  "tauri-build",
+ "thiserror",
  "tokio",
 ]
 

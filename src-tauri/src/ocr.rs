@@ -2,12 +2,12 @@ use chrono::Utc;
 use opencv::{core::Point, imgcodecs, imgproc, prelude::Mat};
 use screenshots::Screen;
 
-use std::{error::Error, fs, time::Instant};
+use std::{fs, time::Instant};
 use tauri::regex::Regex;
 
-use crate::models::DiabloItem;
+use crate::{error::CommandError, models::DiabloItem};
 
-pub fn process_item() -> Result<DiabloItem, Box<dyn Error>> {
+pub fn process_item() -> Result<DiabloItem, CommandError> {
     let start = Instant::now();
 
     //Take screenshot of main display
@@ -17,8 +17,8 @@ pub fn process_item() -> Result<DiabloItem, Box<dyn Error>> {
         .find(|s| s.display_info.is_primary)
         .unwrap();
 
-    let capture = screen.capture()?;
-    let buffer = capture.to_png(None)?;
+    let capture = screen.capture().unwrap();
+    let buffer = capture.to_png(None).unwrap();
 
     //Convert PNG image to opencv MAT
     let img = imgcodecs::imdecode(
@@ -67,8 +67,7 @@ pub fn process_item() -> Result<DiabloItem, Box<dyn Error>> {
     }
 
     if positions.len() != 4 {
-        println!("Not all templates matched, exiting");
-        return Err("Not all templates matched, exiting")?;
+        return Err(opencv::Error::new(-11, "Not all templates matched"))?;
     }
 
     //Crop image based on template matching
@@ -85,8 +84,7 @@ pub fn process_item() -> Result<DiabloItem, Box<dyn Error>> {
             end_col - start_col,
             end_row - start_row,
         ),
-    )
-    .map_err(|_| "Error generating cropped image")?;
+    )?;
 
     let now = Utc::now().timestamp_micros();
     let filepath = format!("ocr_results/{}.png", now);
