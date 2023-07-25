@@ -541,6 +541,7 @@ version = "0.0.0"
 dependencies = [
  "chrono",
  "opencv",
+ "regex",
  "rusty-tesseract",
  "screenshots",
  "serde",

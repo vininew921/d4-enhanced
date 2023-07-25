@@ -20,6 +20,7 @@ rusty-tesseract = "1.1.6"
 opencv = "0.83.0"
 screenshots = "0.7.0"
 chrono = "0.4.26"
+regex = "1.9.1"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

@@ -1,7 +1,8 @@
 use chrono::Utc;
 use opencv::{core::Point, imgcodecs, imgproc, prelude::Mat};
 use screenshots::Screen;
-use std::time::Instant;
+use std::{fs, time::Instant};
+use tauri::regex::Regex;
 
 pub fn process_item() {
     let start = Instant::now();
@@ -87,14 +88,45 @@ pub fn process_item() {
     );
 
     if let Ok(cropped_image) = cropped_image_result {
-        println!("Processed image in {:?}", start.elapsed());
+        let now = Utc::now().timestamp_micros();
+        let filepath = format!("ocr_results/{}.png", now);
 
         imgcodecs::imwrite(
-            format!("ocr_results/{}.png", Utc::now().timestamp_micros()).as_str(),
+            filepath.as_str(),
             &cropped_image,
             &opencv::core::Vector::default(),
         )
         .unwrap();
+
+        let tes_img = rusty_tesseract::Image::from_path(filepath).unwrap();
+
+        let args = rusty_tesseract::Args::default();
+
+        let text_result = rusty_tesseract::image_to_string(&tes_img, &args).unwrap();
+
+        let remove_characters = r"[\\|/*?'-]";
+        let regex_remove = Regex::new(remove_characters).unwrap();
+
+        let pretty_result = regex_remove
+            .replace_all(&text_result, "")
+            .to_string()
+            .to_uppercase()
+            .replace("@ ", "")
+            .replace("® ", "")
+            .replace("© ", "")
+            .replace("@", "O")
+            .replace("®", "O")
+            .replace("©", "O")
+            .replace("¢", "")
+            .replace("{", "[")
+            .replace("}", "]")
+            .replace("OOO", "OO")
+            .replace("&", "E");
+
+        fs::write(format!("ocr_results/{}.txt", now), pretty_result).unwrap();
+
+        println!("Processed image in {:?}", start.elapsed());
+        return;
     }
 
     println!("Error generating cropped image");
