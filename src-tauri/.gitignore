@@ -4,3 +4,7 @@
 
 # Ignore local results folder
 /ocr_results/
+
+database.db
+database.db-shm
+database.db-wal
