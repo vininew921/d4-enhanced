@@ -29,7 +29,14 @@ async fn remove_item(id: i64, pool: tauri::State<'_, Pool<Sqlite>>) -> CommandRe
 }
 
 #[tauri::command]
-async fn get_all_items(pool: tauri::State<'_, Pool<Sqlite>>) -> CommandResult<Vec<DiabloItem>> {
+async fn remove_all_items(pool: tauri::State<'_, Pool<Sqlite>>) -> CommandResult<()> {
+    queries::remove_all_items(&pool).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_items(pool: tauri::State<'_, Pool<Sqlite>>) -> CommandResult<Vec<DiabloItem>> {
     let items = queries::get_all_items(&pool).await?;
 
     Ok(items)
@@ -63,7 +70,8 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             screenshot_item,
             remove_item,
-            get_all_items
+            remove_all_items,
+            get_items
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

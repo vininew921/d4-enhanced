@@ -33,6 +33,10 @@ pub async fn remove_item(pool: &Pool<Sqlite>, id: i64) -> Result<SqliteQueryResu
         .await
 }
 
+pub async fn remove_all_items(pool: &Pool<Sqlite>) -> Result<SqliteQueryResult, sqlx::Error> {
+    sqlx::query("DELETE FROM items").execute(pool).await
+}
+
 pub async fn get_all_items(pool: &Pool<Sqlite>) -> Result<Vec<DiabloItem>, sqlx::Error> {
     sqlx::query_as::<_, DiabloItem>("SELECT * FROM items")
         .fetch_all(pool)
